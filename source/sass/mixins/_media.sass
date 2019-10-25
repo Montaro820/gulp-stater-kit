@@ -1,0 +1,20 @@
+// @mixin extra-small
+//     @media screen and ( max-width: $mobile-width)
+//         @content
+
+
+@mixin extralarge
+    @media screen and (min-width: $desktop-width)
+        @content
+
+@mixin large
+    @media (min-width: $laptop-width ) and ( max-width: $desktop-width - 1px)
+        @content
+        
+@mixin medium
+    @media (min-width: $tablet-width ) and ( max-width: $laptop-width - 1px)
+        @content
+
+@mixin small
+    @media screen and ( max-width: $tablet-width - 1px)
+        @content

@@ -1,159 +1,141 @@
-
-const { series, parallel, watch, src, dest } = require('gulp');
-// const gulp = require('gulp');
-const sass = require('gulp-sass');
-const autoprefixer = require('gulp-autoprefixer');
-//const babel = require('gulp-babel');
-const concat = require('gulp-concat');
-const rigger = require('gulp-rigger');
-const copy = require('gulp-copy');
-const uglify = require('gulp-uglify');
-const cleanCss = require('gulp-clean-css');
-const imagemin = require('gulp-imagemin');
-const plumber = require('gulp-plumber');
-const sourcemap = require('gulp-sourcemaps');
-const del = require('del');
-const browserSync = require('browser-sync');
-const bs = require('browser-sync').create;
-const reload = browserSync.reload;
+const gulp = require('gulp'),
+      sass = require('gulp-sass'),
+      autoPrefixer = require('gulp-autoprefixer'),
+      sourcemaps = require('gulp-sourcemaps'),
+      pug = require('gulp-pug'),
+      del = require('del'),
+      plumber = require('gulp-plumber'),
+      htmlPrettify = require('gulp-html-prettify'),
+      imagemin = require('gulp-imagemin'),
+      browserSync = require('browser-sync');
 
 const path = {
-    input: 'src/*',
-    output: 'build/',
-    dist: 'dist/',
-    img: {
-        dist: 'dist/img/',
-        input: 'src/img/**/*.*',
-        output: 'build/img/'
+    build: 'build/',
+    styles: {
+        source: 'source/sass/**/*',
+        main: 'source/sass/main.sass',
+        dest: 'build/css/'
     },
     scripts: {
-        dist: 'dist/js/',
-        input: 'src/js/**/*.*',
-        output: 'build/js/'
+        source: 'source/js/**/*',
+        main: 'source/js/mian.js',
+        dest: 'build/js/'
     },
-    styles: {
-        dist: 'dist/css/',
-        output: 'build/css/',
-        input:{
-            all: 'src/styles/**/*.{scss,sass}',
-            main: 'src/styles/main.scss',
-        }
+    images: {
+        source: 'source/img/**/*',
+        dest: 'build/img/'
     },
     fonts: {
-        dist: 'dist/fonts/',
-        input: 'src/fonts/**/*.*',
-        output: 'build/fonts/'
+        source: 'source/fonts/**/*.*',
+        dest: 'build/fonts/'
     },
-    pages:{
-        input:{
-            all: 'src/pages/**/*.html',
-            pages: 'src/pages/*.html',
-            components: 'src/pages/components/*.html'
-        },
-        output: 'build/',
-        dist: 'dist/'
+    html:{
+        source: 'source/pug/**/*.*',
+        index: 'source/pug/index.pug',
+        temp: 'source/html_temp/',
+        dest: 'build/'
+    },
+    other:{
+    	source: 'source/other/*',
+    	dest: 'build/other/'
     }
+
 };
 
-const config = {
-    server: {
-        baseDir: path.output
-    },
-    //https: true,
-    //tunnel: 'montaro-dev',
-    online: true,
-    port: 3000,
-    logLevel: "debug"
-};
-
-function server() {
-    browserSync(config)
+function clean(){
+    return del([path.build]);
 }
 
-function cleanBuild() {
-    return del(['build'])
+function serve(done){
+    browserSync.init({
+        server:{
+            baseDir: 'build/'
+        },
+        port: 3000
+    });
+    done();
 }
 
-function cleandist() {
-    return del(['dist'])
+function reload(done){
+    browserSync.reload();
+    done();
 }
 
-function htmlBuild() {
-    return src(path.pages.input.pages)
-        .pipe(dest(path.pages.output))
-        .pipe(reload({stream: true}))
-}
-
-
-function stylesBuild() {
-    return src(path.styles.input.main)
+function styles(){
+    return gulp.src(path.styles.main)
         .pipe(plumber())
-        .pipe(sourcemap.init())
-        .pipe(sass({
-            outputStyle: 'expanded'
-        }).on('error', sass.logError))
-        .pipe(autoprefixer({
-            browsers: ['last 2 version', '> 1%'],
-            cascade: true,
-            remove: true
-        }))
-        .pipe(sourcemap.write('./'))
-        .pipe(dest(path.styles.output))
-        .pipe(reload({stream: true}))
+        .pipe(sourcemaps.init())
+        // .pipe(autoPrefixer())
+        .pipe(sass({outputStyle: 'expanded'}).on('error', sass.logError))
+        .pipe(sourcemaps.write())
+        .pipe(gulp.dest(path.styles.dest));
 }
 
-function imgBuild() {
-    return src(path.img.input)
+function markup(){
+    return gulp.src(path.html.index)
+        .pipe(plumber())
+        .pipe(pug({pretty: true}))
+        .pipe(gulp.dest(path.html.dest));
+}
+
+function prettyHTML(){
+    gulp.src(path.html.temp)
+    .pipe(prettify({indent_char: ' ', indent_size: 2}))
+    .pipe(gulp.dest(path.html.dest))
+}
+
+function images(){
+    return gulp.src(path.images.source)
         .pipe(imagemin([
             imagemin.gifsicle({interlaced: true}),
             imagemin.jpegtran({progressive: true}),
-            imagemin.optipng({optimizationLevel: 5})
+            imagemin.optipng({optimizationLevel: 5}),
+            imagemin.svgo({
+                plugins: [
+                    {removeViewBox: true},
+                    {cleanupIDs: false}
+                ]
+            })
         ]))
-        .pipe(dest(path.img.output))
-        .pipe(reload({stream: true}))
+        .pipe(gulp.dest(path.images.dest))
 }
 
-function pug() {
-    return src('src/pages/*.pug')
+//Добавить обработку скриптов
+function scripts(){
+    return gulp.src(path.scripts.source)
         .pipe(plumber())
-        .pipe(pug({pretty: true}))
-        .pipe(dest(path.pages.output))
-        // .pipe(reload({stream: true}));
+        .pipe(gulp.dest(path.scripts.dest))
 }
 
-function scriptsBuild() {
-    return src(path.scripts.input)
-        .pipe(sourcemap.init())
-        .pipe(plumber())
-        //.pipe(babel())
-        //.pipe(uglify())
-        // .pipe(concat('main.min.js'))
-        // .pipe(sourcemap.write('./'))
-        .pipe(dest(path.scripts.output))
-        .pipe(reload({stream: true}))
+function fonts(){
+    return gulp.src(path.fonts.source)
+        .pipe(gulp.dest(path.fonts.dest))
 }
 
-function fontsBuild() {
-    return src(path.fonts.input)
-        .pipe(dest(path.fonts.output))
-        .pipe(reload({stream: true}))
+function copyOther(){
+	return gulp.src(path.other.source)
+		.pipe(gulp.dest(path.other.dest))
 }
 
-watch(path.styles.input.all, stylesBuild);
-watch(path.img.input, imgBuild);
-watch(path.pages.input.all, htmlBuild);
-watch(path.scripts.input, scriptsBuild);
-watch(path.fonts.input, fontsBuild);
+function watchFiles(){
+    gulp.watch(path.styles.source, gulp.series(styles, reload));
+    gulp.watch(path.html.source, gulp.series(markup, reload));
+    gulp.watch(path.images.source, gulp.series(images, reload));
+    gulp.watch(path.scripts.source, gulp.series(scripts, reload));
+    gulp.watch(path.fonts.source, gulp.series(fonts, reload));
+}
 
-exports.build = series(
-    cleanBuild,
-    stylesBuild,
-    htmlBuild,
-    fontsBuild,
-    scriptsBuild,
-    imgBuild,
-    server,
+const watch = gulp.parallel(serve, watchFiles);
+const build = gulp.series(
+    clean,
+    gulp.parallel(styles, markup, images, scripts, fonts, copyOther)
 );
 
+exports.watch = watch;
+exports.build = build;
 
-
+exports.styles = styles;
+exports.markup = markup;
+exports.images = images;
+exports.scripts = scripts;
+exports.fonts = fonts;
